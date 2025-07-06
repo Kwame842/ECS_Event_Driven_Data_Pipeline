@@ -31,3 +31,10 @@ spark = (
     .config("spark.hadoop.fs.s3a.endpoint", "s3.amazonaws.com")
     .getOrCreate()
 )
+
+# AWS clients
+dynamodb = boto3.resource("dynamodb")
+s3_client = boto3.client("s3")
+order_table = dynamodb.Table(ORDER_KPI_TABLE)
+category_table = dynamodb.Table(CATEGORY_KPI_TABLE)
+processed_table = dynamodb.Table(PROCESSED_TABLE)
