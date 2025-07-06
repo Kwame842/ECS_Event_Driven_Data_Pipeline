@@ -1,0 +1,79 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "ECSRunPermissions",
+        "Effect": "Allow",
+        "Action": [
+          "ecs:RunTask",
+          "ecs:StopTask",
+          "ecs:RegisterTaskDefinition",
+          "ecs:DeregisterTaskDefinition",
+          "ecs:DescribeTasks",
+          "ecs:DescribeTaskDefinition"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "ECSClusterManagement",
+        "Effect": "Allow",
+        "Action": [
+          "ecs:CreateCluster",
+          "ecs:DeleteCluster",
+          "ecs:DescribeClusters"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "CloudWatchLogsAccess",
+        "Effect": "Allow",
+        "Action": [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "SNSNotifications",
+        "Effect": "Allow",
+        "Action": [
+          "sns:Publish"
+        ],
+        "Resource": [
+          "arn:aws:sns:<region>:<accountid>:ecommerce-pipeline-success",
+          "arn:aws:sns:<region>:<accountid>:ecommerce-pipeline-failures"
+        ]
+      },
+      {
+        "Sid": "S3DataAccess",
+        "Effect": "Allow",
+        "Action": [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket"
+        ],
+        "Resource": [
+          "arn:aws:s3:::<bucket_name>",
+          "arn:aws:s3:::<bucket_name>*"
+        ]
+      },
+      {
+        "Sid": "DynamoDBAccess",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:GetItem",
+          "dynamodb:BatchWriteItem"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:eu-north-1:<accountid>:table/*YourTable1*",
+          "arn:aws:dynamodb:eu-north-1:<accountid>:table/*YourTable2*",
+          "arn:aws:dynamodb:eu-north-1:<accountid>:table/*YourTable3*"
+        ]
+      }
+    ]
+  }
+  
