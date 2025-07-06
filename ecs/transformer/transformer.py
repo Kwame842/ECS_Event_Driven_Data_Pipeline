@@ -11,3 +11,9 @@ from dotenv import load_dotenv
 
 # # Load environment variables
 load_dotenv()
+
+BUCKET = os.getenv("BUCKET")
+ORDER_KPI_TABLE = os.getenv("ORDER_KPI_TABLE")
+CATEGORY_KPI_TABLE = os.getenv("CATEGORY_KPI_TABLE")
+PROCESSED_TABLE = os.getenv("PROCESSED_TABLE")
+PRODUCTS_PREFIX = os.getenv("PRODUCTS_PREFIX", "static/")
