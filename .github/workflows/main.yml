@@ -2,11 +2,8 @@ name: Deploy Step Function
 
 on:
   push:
-    paths:
-      - "state-machine.json"
-      - ".github/workflows/main.yml"
     branches:
-      - main
+      - main   # Runs on push to main regardless of which files changed
 
 jobs:
   deploy-step-function:
@@ -16,7 +13,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up AWS CLI
+      - name: Set up AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -25,10 +22,10 @@ jobs:
 
       - name: Validate Step Function JSON
         run: |
-          cat state-machine.json | jq empty
+          jq empty step_functions/MainStepFn.json
 
       - name: Deploy Step Function
         run: |
           aws stepfunctions update-state-machine \
             --state-machine-arn "${{ secrets.STATE_MACHINE_ARN }}" \
-            --definition file://Main-StepFn.json
+            --definition file://step_functions/MainStepFn.json
