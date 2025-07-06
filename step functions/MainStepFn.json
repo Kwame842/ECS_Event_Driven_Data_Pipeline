@@ -1,0 +1,348 @@
+{
+    "Comment": "Simplified ephemeral ECS pipeline with cleanup and notifications",
+    "StartAt": "GenerateExecutionParameters",
+    "States": {
+      "GenerateExecutionParameters": {
+        "Type": "Pass",
+        "Parameters": {
+          "executionId.$": "$$.Execution.Name",
+          "awsAccountId": "714377355835",
+          "region": "eu-north-1",
+          "input": {
+            "ecr": {
+              "validatorImageUri": "714377355835.dkr.ecr.eu-north-1.amazonaws.com/ecs-validator:latest",
+              "transformerImageUri": "714377355835.dkr.ecr.eu-north-1.amazonaws.com/ecs-transformer01:latest"
+            },
+            "iam": {
+              "executionRoleArn": "arn:aws:iam::714377355835:role/ecsTaskExecutionRole",
+              "taskRoleArn": "arn:aws:iam::714377355835:role/ECS-Task-Role"
+            },
+            "vpc": {
+              "subnets": [
+                "subnet-0c864809ea93ef957",
+                "subnet-059e7d01ca7736ee5",
+                "subnet-0ed7a2c91427b0e72",
+                "subnet-09ee04f3986f64c56"
+              ],
+              "securityGroups": [
+                "sg-09c604520f418fb70",
+                "sg-012d6358e356cc05b"
+              ]
+            },
+            "cloudwatch": {
+              "logGroup": "/ecs/ephemeral-pipeline"
+            },
+            "sns": {
+              "successTopicArn": "arn:aws:sns:eu-north-1:714377355835:ecommerce-pipeline-success",
+              "failureTopicArn": "arn:aws:sns:eu-north-1:714377355835:ecommerce-pipeline-failures"
+            }
+          }
+        },
+        "ResultPath": "$.ephemeral",
+        "Next": "CreateCluster"
+      },
+      "CreateCluster": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::aws-sdk:ecs:createCluster",
+        "Parameters": {
+          "ClusterName.$": "States.Format('ecs-ephemeral-cluster-{}', $.ephemeral.executionId)",
+          "Tags": [
+            {
+              "Key": "CreatedBy",
+              "Value": "StepFunctions"
+            },
+            {
+              "Key": "Purpose",
+              "Value": "EphemeralPipeline"
+            }
+          ]
+        },
+        "ResultPath": "$.clusterInfo",
+        "Catch": [
+          {
+            "ErrorEquals": [
+              "States.ALL"
+            ],
+            "ResultPath": "$.errorInfo",
+            "Next": "NotifyPipelineFailure"
+          }
+        ],
+        "Next": "ProcessTasksInParallel"
+      },
+      "ProcessTasksInParallel": {
+        "Type": "Parallel",
+        "ResultPath": "$.parallelResults",
+        "Catch": [
+          {
+            "ErrorEquals": [
+              "States.ALL"
+            ],
+            "ResultPath": "$.errorInfo",
+            "Next": "Cleanup"
+          }
+        ],
+        "Branches": [
+          {
+            "StartAt": "RegisterValidatorTask",
+            "States": {
+              "RegisterValidatorTask": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::aws-sdk:ecs:registerTaskDefinition",
+                "Parameters": {
+                  "Family.$": "States.Format('validator-task-{}', $.ephemeral.executionId)",
+                  "RequiresCompatibilities": [
+                    "FARGATE"
+                  ],
+                  "NetworkMode": "awsvpc",
+                  "Cpu": "1024",
+                  "Memory": "2048",
+                  "ExecutionRoleArn.$": "$.ephemeral.input.iam.executionRoleArn",
+                  "TaskRoleArn.$": "$.ephemeral.input.iam.taskRoleArn",
+                  "ContainerDefinitions": [
+                    {
+                      "Name": "validator-container",
+                      "Image.$": "$.ephemeral.input.ecr.validatorImageUri",
+                      "Essential": true,
+                      "LogConfiguration": {
+                        "LogDriver": "awslogs",
+                        "Options": {
+                          "awslogs-group.$": "$.ephemeral.input.cloudwatch.logGroup",
+                          "awslogs-region.$": "$.ephemeral.region",
+                          "awslogs-stream-prefix": "ecs-validator"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "ResultPath": "$.validatorTaskDef",
+                "Next": "RunValidator"
+              },
+              "RunValidator": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::ecs:runTask.sync",
+                "Parameters": {
+                  "Cluster.$": "$.clusterInfo.Cluster.ClusterArn",
+                  "TaskDefinition.$": "$.validatorTaskDef.TaskDefinition.TaskDefinitionArn",
+                  "LaunchType": "FARGATE",
+                  "NetworkConfiguration": {
+                    "AwsvpcConfiguration": {
+                      "Subnets.$": "$.ephemeral.input.vpc.subnets",
+                      "SecurityGroups.$": "$.ephemeral.input.vpc.securityGroups",
+                      "AssignPublicIp": "ENABLED"
+                    }
+                  }
+                },
+                "TimeoutSeconds": 1800,
+                "ResultPath": "$.runTaskOutput",
+                "Retry": [
+                  {
+                    "ErrorEquals": [
+                      "States.TaskFailed"
+                    ],
+                    "IntervalSeconds": 30,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2
+                  }
+                ],
+                "End": true
+              }
+            }
+          },
+          {
+            "StartAt": "RegisterTransformerTask",
+            "States": {
+              "RegisterTransformerTask": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::aws-sdk:ecs:registerTaskDefinition",
+                "Parameters": {
+                  "Family.$": "States.Format('transformer-task-{}', $.ephemeral.executionId)",
+                  "RequiresCompatibilities": [
+                    "FARGATE"
+                  ],
+                  "NetworkMode": "awsvpc",
+                  "Cpu": "1024",
+                  "Memory": "2048",
+                  "ExecutionRoleArn.$": "$.ephemeral.input.iam.executionRoleArn",
+                  "TaskRoleArn.$": "$.ephemeral.input.iam.taskRoleArn",
+                  "ContainerDefinitions": [
+                    {
+                      "Name": "transformer-container",
+                      "Image.$": "$.ephemeral.input.ecr.transformerImageUri",
+                      "Essential": true,
+                      "Environment": [
+                        {
+                          "Name": "BUCKET",
+                          "Value": "ecommerce-data-bucket-01"
+                        },
+                        {
+                          "Name": "ORDER_KPI_TABLE",
+                          "Value": "OrderKPIs"
+                        },
+                        {
+                          "Name": "CATEGORY_KPI_TABLE",
+                          "Value": "CategoryKPIs"
+                        },
+                        {
+                          "Name": "PROCESSED_TABLE",
+                          "Value": "processed_files"
+                        }
+                      ],
+                      "LogConfiguration": {
+                        "LogDriver": "awslogs",
+                        "Options": {
+                          "awslogs-group.$": "$.ephemeral.input.cloudwatch.logGroup",
+                          "awslogs-region.$": "$.ephemeral.region",
+                          "awslogs-stream-prefix": "ecs-transformer"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "ResultPath": "$.transformerTaskDef",
+                "Next": "RunTransformer"
+              },
+              "RunTransformer": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::ecs:runTask.sync",
+                "Parameters": {
+                  "Cluster.$": "$.clusterInfo.Cluster.ClusterArn",
+                  "TaskDefinition.$": "$.transformerTaskDef.TaskDefinition.TaskDefinitionArn",
+                  "LaunchType": "FARGATE",
+                  "NetworkConfiguration": {
+                    "AwsvpcConfiguration": {
+                      "Subnets.$": "$.ephemeral.input.vpc.subnets",
+                      "SecurityGroups.$": "$.ephemeral.input.vpc.securityGroups",
+                      "AssignPublicIp": "ENABLED"
+                    }
+                  }
+                },
+                "TimeoutSeconds": 1800,
+                "ResultPath": "$.runTaskOutput",
+                "Retry": [
+                  {
+                    "ErrorEquals": [
+                      "States.TaskFailed"
+                    ],
+                    "IntervalSeconds": 30,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2
+                  }
+                ],
+                "End": true
+              }
+            }
+          }
+        ],
+        "Next": "Cleanup"
+      },
+      "Cleanup": {
+        "Type": "Parallel",
+        "ResultPath": "$.cleanupResults",
+        "Catch": [
+          {
+            "ErrorEquals": [
+              "States.ALL"
+            ],
+            "ResultPath": "$.errorInfo",
+            "Next": "DeleteCluster"
+          }
+        ],
+        "Branches": [
+          {
+            "StartAt": "DeregisterValidatorTask",
+            "States": {
+              "DeregisterValidatorTask": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::aws-sdk:ecs:deregisterTaskDefinition",
+                "Parameters": {
+                  "TaskDefinition.$": "$.parallelResults[0].validatorTaskDef.TaskDefinition.TaskDefinitionArn"
+                },
+                "Catch": [
+                  {
+                    "ErrorEquals": [
+                      "States.ALL"
+                    ],
+                    "Next": "SkipValidatorCleanup"
+                  }
+                ],
+                "Next": "SkipValidatorCleanup"
+              },
+              "SkipValidatorCleanup": {
+                "Type": "Pass",
+                "End": true
+              }
+            }
+          },
+          {
+            "StartAt": "DeregisterTransformerTask",
+            "States": {
+              "DeregisterTransformerTask": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::aws-sdk:ecs:deregisterTaskDefinition",
+                "Parameters": {
+                  "TaskDefinition.$": "$.parallelResults[1].transformerTaskDef.TaskDefinition.TaskDefinitionArn"
+                },
+                "Catch": [
+                  {
+                    "ErrorEquals": [
+                      "States.ALL"
+                    ],
+                    "Next": "SkipTransformerCleanup"
+                  }
+                ],
+                "Next": "SkipTransformerCleanup"
+              },
+              "SkipTransformerCleanup": {
+                "Type": "Pass",
+                "End": true
+              }
+            }
+          }
+        ],
+        "Next": "DeleteCluster"
+      },
+      "DeleteCluster": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::aws-sdk:ecs:deleteCluster",
+        "Parameters": {
+          "Cluster.$": "$.clusterInfo.Cluster.ClusterArn"
+        },
+        "ResultPath": "$.deleteClusterResult",
+        "Catch": [
+          {
+            "ErrorEquals": [
+              "States.ALL"
+            ],
+            "ResultPath": "$.clusterDeleteError",
+            "Next": "NotifySuccess"
+          }
+        ],
+        "Next": "NotifySuccess"
+      },
+      "NotifySuccess": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::sns:publish",
+        "Parameters": {
+          "TopicArn.$": "$.ephemeral.input.sns.successTopicArn",
+          "Message.$": "States.Format('Pipeline completed successfully for execution: {}. All resources cleaned up.', $.ephemeral.executionId)",
+          "Subject": "ECS Pipeline Success"
+        },
+        "End": true
+      },
+      "NotifyPipelineFailure": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::sns:publish",
+        "Parameters": {
+          "TopicArn.$": "$.ephemeral.input.sns.failureTopicArn",
+          "Message.$": "States.Format('Pipeline failed for execution: {}. Error: {}', $.ephemeral.executionId, States.JsonToString($.errorInfo))",
+          "Subject": "ECS Pipeline Failure"
+        },
+        "Next": "WorkflowFailed"
+      },
+      "WorkflowFailed": {
+        "Type": "Fail",
+        "Error": "WorkflowFailed",
+        "Cause": "The ephemeral ECS pipeline failed."
+      }
+    }
+  }
