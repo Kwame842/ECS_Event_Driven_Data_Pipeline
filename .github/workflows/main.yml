@@ -22,7 +22,7 @@ jobs:
 
       - name: Validate Step Function JSON
         run: |
-          jq empty step_functions/MainStepFn.json
+          jq empty step functions/MainStepFn.json
 
       - name: Deploy Step Function
         run: |
