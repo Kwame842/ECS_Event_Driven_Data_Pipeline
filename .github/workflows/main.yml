@@ -22,10 +22,10 @@ jobs:
 
       - name: Validate Step Function JSON
         run: |
-          jq empty step functions/MainStepFn.json
+          jq empty stepfunctions/MainStepFn.json
 
       - name: Deploy Step Function
         run: |
           aws stepfunctions update-state-machine \
             --state-machine-arn "${{ secrets.STATE_MACHINE_ARN }}" \
-            --definition file://step_functions/MainStepFn.json
+            --definition file://stepfunctions/MainStepFn.json
