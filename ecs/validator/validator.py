@@ -11,3 +11,9 @@ load_dotenv()
 BUCKET = os.getenv("BUCKET")
 
 s3 = boto3.client("s3")
+
+# Expected schema definitions
+EXPECTED_SCHEMAS = {
+    "orders": ["order_id", "user_id", "created_at", "status", "num_of_item"],
+    "order_items": ["order_id", "product_id", "created_at", "sale_price", "status"]
+}
