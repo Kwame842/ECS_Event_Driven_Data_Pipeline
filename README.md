@@ -35,9 +35,11 @@ ecs-event-driven-pipeline/
 │   ├── validator/
 │   │   ├── Dockerfile
 │   │   └── validator.py
+│   │   └── requirements.txt
 │   ├── transformer/
 │   │   ├── Dockerfile
 │   │   └── transformer.py
+│   │   └── requirements.txt
 ├── imgs/
 │   ├── Architecture.jpg
 │   ├── stepfunctions.svg
