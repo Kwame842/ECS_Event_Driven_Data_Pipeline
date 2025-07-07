@@ -1,12 +1,12 @@
-name: Deploy Step Function
+name: Deploy Step Function and ECS Docker Images
 
 on:
   push:
     branches:
-      - main   # Runs on push to main regardless of which files changed
+      - main  # Runs on push to main
 
 jobs:
-  deploy-step-function:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,9 +20,24 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Validate Step Function JSON
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push validator image
         run: |
-          jq empty stepfunctions/MainStepFn.json
+          docker build -t ecs-validator ./ecs/validator
+          docker tag ecs-validator:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-validator:latest
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-validator:latest
+
+      - name: Build, tag, and push transformer image
+        run: |
+          docker build -t ecs-transformer ./ecs/transformer
+          docker tag ecs-transformer:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-transformer:latest
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-transformer:latest
+
+      - name: Validate Step Function JSON
+        run: jq empty stepfunctions/MainStepFn.json
 
       - name: Deploy Step Function
         run: |
