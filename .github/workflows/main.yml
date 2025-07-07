@@ -3,7 +3,11 @@ name: Deploy Step Function and ECS Docker Images
 on:
   push:
     branches:
-      - main  # Runs on push to main
+      - main
+
+env:
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+  REGION: ${{ secrets.AWS_REGION }}
 
 jobs:
   deploy:
@@ -21,20 +25,19 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Log in to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build, tag, and push validator image
         run: |
           docker build -t ecs-validator-new ./ecs/validator
-          docker tag ecs-validator-new:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-validator-new:latest
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-validator-new:latest
+          docker tag ecs-validator-new:latest $ECR_REGISTRY/ecs-validator-new:latest
+          docker push $ECR_REGISTRY/ecs-validator-new:latest
 
       - name: Build, tag, and push transformer image
         run: |
           docker build -t ecs-transformer-new ./ecs/transformer
-          docker tag ecs-transformer-new:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-transformer-new:latest
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-transformer-new:latest
+          docker tag ecs-transformer-new:latest $ECR_REGISTRY/ecs-transformer-new:latest
+          docker push $ECR_REGISTRY/ecs-transformer-new:latest
 
       - name: Validate Step Function JSON
         run: jq empty stepfunctions/MainStepFn.json
