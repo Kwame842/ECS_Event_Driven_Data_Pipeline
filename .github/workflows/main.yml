@@ -26,15 +26,15 @@ jobs:
 
       - name: Build, tag, and push validator image
         run: |
-          docker build -t ecs-validator ./ecs/validator
-          docker tag ecs-validator:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-validator:latest
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-validator:latest
+          docker build -t ecs-validator-new ./ecs/validator-new
+          docker tag ecs-validator-new:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-validator-new:latest
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-validator-new:latest
 
       - name: Build, tag, and push transformer image
         run: |
-          docker build -t ecs-transformer ./ecs/transformer
-          docker tag ecs-transformer:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-transformer:latest
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-transformer:latest
+          docker build -t ecs-transformer-new ./ecs/transformer-new
+          docker tag ecs-transformer-new:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-transformer-new:latest
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/ecs-transformer-new:latest
 
       - name: Validate Step Function JSON
         run: jq empty stepfunctions/MainStepFn.json
