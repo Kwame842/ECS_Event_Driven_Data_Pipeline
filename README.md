@@ -1,32 +1,36 @@
+
 # ECS Event-Driven Data Pipeline
 
 ## Overview
 
-This project implements a **real-time**, **event-driven data pipeline** for an e-commerce platform using AWS services. It ingests transactional data (CSV files) uploaded to Amazon S3, validates and transforms it using containerized tasks on ECS (Fargate), stores business KPIs in DynamoDB, and uses AWS Step Functions to orchestrate the process. The workflow is triggered by S3 events through a Lambda function.
+This project implements a **real-time**, **event-driven data pipeline** for an e-commerce platform using fully managed AWS services. It ingests transactional data (CSV files) uploaded to Amazon S3, triggers processing using Amazon EventBridge, validates and transforms the data using containerized ECS Fargate tasks, and stores computed KPIs in DynamoDB. The orchestration is managed by AWS Step Functions with full automation, error handling, and resource cleanup. Dashboards are powered by **Amazon QuickSight** and **Power BI** for business intelligence.
 
-### Key Features
+---
 
-* **Event-Driven Trigger**: S3 upload triggers Lambda to start Step Functions
-* **Containerized Processing**: ECS Fargate runs validator & transformer containers
-* **Automated Orchestration**: Step Functions handles task coordination, error recovery, and cleanup
-* **Optimized Storage**: KPIs stored in DynamoDB for fast, structured querying
-* **Resource Cleanup**: All ephemeral resources are automatically deleted after use
-* **Robust Error Handling**: Retry policies, SNS notifications, and logging via CloudWatch
-* **File Archiving**: Validated files are moved to a `processed/` prefix in S3
+![Architecture Diagram](diagram/Architecture.png)
+
+
+
+## Key Features
+
+- **Event-Driven Execution**: S3 uploads trigger the workflow via EventBridge
+- **Containerized Processing**: ECS Fargate runs isolated validator and transformer tasks
+- **Workflow Automation**: AWS Step Functions orchestrate tasks, retries, and cleanup
+- **KPI Storage**: DynamoDB stores category and order-level KPIs
+- **Monitoring & Notifications**: Integrated with CloudWatch and SNS
+- **Dashboarding**: Visualized using Amazon QuickSight and Power BI
+- **Ephemeral Resources**: ECS clusters and tasks are dynamically provisioned and cleaned
 
 ---
 
 ## Repository Structure
 
 ```bash
-ephemeral-ecs-pipeline/
+ecs-event-driven-pipeline/
 ├── .github/workflows/
-│   └── main.yml                 # GitHub Actions for CI/CD
+│   └── main.yml                    # GitHub Actions for CI/CD
 ├── step_functions/
 │   └── MainStepFn.json          # Step Functions definition
-├── iam/
-│   └── ecsExecutionTaskRole.json  # IAM policies for ECS roles
-│   └── ecsTaskRole.json
 ├── ecs/
 │   ├── validator/
 │   │   ├── Dockerfile
@@ -34,204 +38,230 @@ ephemeral-ecs-pipeline/
 │   ├── transformer/
 │   │   ├── Dockerfile
 │   │   └── transformer.py
-├── data
-│   ├── products/
-│   ├── orders/
+├── imgs/
+│   ├── Architecture.jpg
+│   ├── stepfunctions.svg
+│   ├── executed.svg
+│   ├── SNS-email.png
+│   ├── order_kpi.png
+│   └── category_kpi.png
+├── data/
+│   └── products/
+│   └── orders/
 │   └── order_items/
-├── tests/
-│   ├── test_lambda.py
-│   └── test_pipeline.sh
-├── docs/
-│   ├── architecture.md
-│   ├── setup.md
-│   ├── testing.md
-│   └── troubleshooting.md
-├── .gitignore
+├── requirements.txt
 ├── LICENSE
-├── README.md
-└── requirements.txt
+└── README.md
 ```
 
 ---
 
-## Prerequisites
+## Data Flow & Architecture
 
-* AWS CLI configured (`aws configure`)
-* Docker
-* AWS IAM roles and policies
-* ECR repos for containers
-* S3 bucket for input files
-* DynamoDB tables for KPIs
 
-IAM Roles:
-
-* `ecsTaskExecutionRole`
-* `ecsTaskRole`
-* `stepFunctionsExecutionRole`
-* `lambdaExecutionRole`
-
-SNS Topics:
-
-* `ecommerce-pipeline-success`
-* `ecommerce-pipeline-failure`
+1. **S3 Upload** triggers EventBridge
+2. **EventBridge** invokes Step Function
+3. **Step Function** provisions ECS cluster, runs validator and transformer tasks
+4. **Results** are written to DynamoDB and cleaned files back to S3
+5. **Monitoring** via CloudWatch & SNS
+6. **Dashboards** with Power BI & QuickSight
 
 ---
 
-## Data Flow and Design
-
-### Input Format (CSV)
+##  Input Format
 
 ```csv
 order_id,customer_id,order_date,category,product_id,quantity,unit_price,returned
 ORD123,CUST001,2025-07-06,Electronics,PROD001,2,199.99,false
 ```
 
-### Validator (ecs/validator/validator.py)
+---
 
-* Ensures required fields, correct data types, valid formats, and integrity
-* Fails the pipeline on invalid data
+## ECS Task Logic
 
-### Transformer (ecs/transformer/transformer.py)
+### Validator Task
 
-* Calculates:
+- Validates schema and data types
+- Rejects malformed rows
+- Outputs cleaned data to new S3 prefix
+- Logs errors to CloudWatch
 
-  * **Order KPIs**: total revenue, return rate, etc.
-  * **Category KPIs**: average order value, daily revenue
-* Writes to `OrderKPIs` and `CategoryKPIs` DynamoDB tables
+### Transformer Task
 
-### DynamoDB Tables
-
-#### CategoryKPIs
-
-* `Partition Key`: category
-* `Sort Key`: order\_date
-* Attributes: daily\_revenue, avg\_order\_value, avg\_return\_rate
-
-#### OrderKPIs
-
-* `Partition Key`: order\_date
-* Attributes: total\_orders, total\_revenue, total\_items\_sold, return\_rate, unique\_customers
+- Computes:
+  - **Category KPIs** (revenue, return rate, AOV)
+  - **Order KPIs** (revenue, total orders, unique customers)
+- Writes results to DynamoDB
 
 ---
 
-## Deployment
+## DynamoDB Schema
 
-### 1. Clone the repo
+### CategoryKPIs
+
+| Attribute         | Type           | Description                    |
+|------------------|----------------|--------------------------------|
+| category          | Partition Key  | Product category               |
+| order_date        | Sort Key       | Date of order                  |
+| daily_revenue     | Number         | Revenue per category           |
+| avg_order_value   | Number         | Avg order value                |
+| avg_return_rate   | Number         | Avg return rate                |
+
+### OrderKPIs
+
+| Attribute         | Type   | Description                      |
+|------------------|--------|----------------------------------|
+| order_date        | Key    | Date                             |
+| total_orders      | Number | Number of orders                 |
+| total_revenue     | Number | Aggregate order revenue          |
+| total_items_sold  | Number | Quantity sold                    |
+| return_rate       | Number | Return percentage                |
+| unique_customers  | Number | Distinct customers               |
+
+---
+
+## Step Function Workflow
+
+
+1. **CreateCluster**
+2. **Run Validator Task**
+3. **Run Transformer Task**
+4. **Write to DynamoDB**
+5. **Deregister Tasks & Delete Cluster**
+6. **Notify Success/Failure via SNS**
+
+
+---
+
+![Step Function](imgs/ECS-StepFunction-Design.png)
+
+![Step Function](imgs/ECS-StepFunction-Running.png)
+
+
+## Deployment Steps
+
+### Prerequisites
+
+- AWS CLI configured
+- Docker installed
+- IAM roles for ECS, EventBridge, Step Functions, Lambda
+- ECR repositories: `ecs-validator`, `ecs-transformer`
+
+### Setup
 
 ```bash
-git clone https://github.com/<your-username>/ephemeral-ecs-pipeline.git
-cd ephemeral-ecs-pipeline
-```
+# Clone repo
+git clone https://github.com/<your-username>/ecs-event-driven-pipeline.git
+cd ecs-event-driven-pipeline
 
-### 2. Create AWS Resources
+# Create S3 buckets
+aws s3 mb s3://your-input-bucket
+aws s3 mb s3://your-cleaned-bucket
 
-```bash
-# S3 Bucket
-aws s3 mb s3://<your-bucket> --region <your-region>
-
-# DynamoDB Tables
-aws dynamodb create-table ... # See docs
-
-# ECR Repos
-aws ecr create-repository --repository-name ecs-validator
-aws ecr create-repository --repository-name ecs-transformer
-```
-
-### 3. Build & Push Containers
-
-```bash
+# Build and push containers
 cd ecs/validator
-# Build and push to ECR
+docker build -t validator .
+docker push <ecr-uri>/ecs-validator
 
 cd ../transformer
-# Build and push to ECR
-```
+docker build -t transformer .
+docker push <ecr-uri>/ecs-transformer
 
-### 4. Setup Eventsbridge 
-
-```bash
-add a rule
-```
-
-### 5. Configure S3 Event Notifications
-
-```bash
-aws s3api put-bucket-notification-configuration ...
-```
-
-### 6. Deploy Step Functions
-
-```bash
+# Set up EventBridge rule and Step Function
 aws stepfunctions create-state-machine ...
 ```
 
-### 7. Run Test Pipeline
+---
+
+## CI/CD with GitHub Actions
+
+- File: `.github/workflows/main.yml`
+- Triggered on:
+  - Push to `main`
+  - Changes to Step Function or workflow files
+- Features:
+  - JSON validation
+  - Auto-deploy Step Function updates
+
+---
+
+## Monitoring and Alerts
+
+- **Logs**:
+  - `/aws/ecs/ecs-validator`
+  - `/aws/ecs/ecs-transformer`
+- **SNS Notifications**:
+  - `pipeline-success`
+  - `pipeline-failure`
+
+
+---
+
+![SNS](imgs/ECS-SNS-Alert.png)
+
+## Dashboarding
+
+### Power BI Dashboards
+
+#### Order KPIs
+![Order KPIs](imgs/ECS-OrderKPI.png)
+
+
+#### Category KPIs
+![Category KPIs](imgs/ECS-DataVisualization.png)
+
+---
+
+## Testing
 
 ```bash
-aws s3 cp data/sample/valid_order.csv s3://<your-bucket>/input/test.csv
-```
+# Unit tests
+pytest tests/test.py
 
----
-
-## 🔮 CI/CD with GitHub Actions
-
-* Defined in `.github/workflows/main.yml`
-* Auto-deploys Lambda, Step Function updates, and validates JSON syntax
-* Secrets should be stored securely via GitHub Settings
-
----
-
-## 📊 Monitoring and Logs
-
-* **CloudWatch Logs**:
-
-  * `/ecs/ephemeral-pipeline`
-  * Stream prefixes: `ecs-validator`, `ecs-transformer`
-* **SNS Alerts** for both success and failure
-* **Step Function Execution History**: view full pipeline execution state
-
----
-
-## 🔬 Testing & Simulation
-
-```bash
-# Manual trigger
-aws stepfunctions start-execution --input '{"bucket": "<your-bucket>", "key": "input/test.csv"}'
-
-# Run unit tests
-pytest tests/test_lambda.py
-
-# Simulate end-to-end
+# Full simulation
 ./tests/test_pipeline.sh
+
+# Manual Step Function trigger
+aws stepfunctions start-execution --input '{"bucket": "your-input-bucket", "key": "input/test.csv"}'
 ```
+
+---
+
+## Error Handling
+
+- **Validator**: Schema checks, logs to CloudWatch
+- **Transformer**: Validation of metrics, no partial writes
+- **Step Function**: Retry logic, SNS on failure
 
 ---
 
 ## Future Improvements
 
-* Add SQS DLQ for failed files
-* Build a frontend dashboard to query KPIs
-* Extend validation rules and schema flexibility
-* Create a visual architecture diagram using draw\.io
+- SQS DLQ for failed files
+- Schema registry support
+- Frontend KPI dashboard with React
+- Redshift/Athena integration
 
 ---
 
-## 📖 License
+## License
 
-MIT License. See `LICENSE` file.
+MIT License. See `LICENSE`.
 
-##  Contributing
+---
 
-* Fork and clone
-* Create feature branches
-* Submit pull requests with clear descriptions
+## Contributing
+
+- Fork this repo
+- Create a feature branch
+- Submit a PR with proper documentation
 
 ---
 
 ## Contact
 
-For questions or support, open an issue on the GitHub repository.
+For questions or support, open an issue in the repository.
 
 ---
 
-Happy building with AWS! 🚀
+
