@@ -51,10 +51,6 @@ ecs-event-driven-pipeline/
 │   ├── eventbridge_trigger/
 │   │   ├── lambda_function.py               # Lambda function for EventBridge (optional fallback)
 │   │   └── requirements.txt                 # Lambda dependencies
-├── scripts/
-│   ├── deploy.sh                            # Deployment script for AWS resources
-│   ├── undeploy.sh                          # Cleanup script for AWS resources
-│   └── validate_json.sh                     # JSON validation script
 ├── data/
 │   ├── products/
 │   │   └── sample_products.csv              # Sample product data
@@ -64,13 +60,7 @@ ecs-event-driven-pipeline/
 │   ├── order_items/
 │   │   └── sample_order_items.csv           # Sample order items data
 ├── tests/
-│   ├── test_lambda.py                       # Unit tests for Lambda (if used)
 │   └── test_pipeline.sh                     # Pipeline simulation script
-├── docs/
-│   ├── architecture.md                      # Architecture details and diagram
-│   ├── setup.md                             # Detailed setup instructions
-│   ├── testing.md                           # Testing guidelines
-│   └── troubleshooting.md                   # Troubleshooting guide
 ├── imgs/
 │   ├── Architecture.jpg                     # Pipeline architecture diagram
 │   ├── stepfunctions.svg                    # Step Functions workflow diagram
@@ -364,9 +354,13 @@ The state machine (`step_functions/MainStepFn.json`) orchestrates:
 **Note**: Replace placeholders in `MainStepFn.json` (e.g., `<AWS_ACCOUNT_ID>`, `<YOUR_REGION>`) with your actual AWS resource values.
 
 ### Visualizations
-- **Step Functions Workflow**: ![Step Functions Design](imgs/stepfunctions.svg)
-- **Execution Graph**: ![Step Functions Executed](imgs/executed.svg)
-- **SNS Notification**: ![SNS Email](imgs/SNS-email.png)
+- **Step Functions Workflow**:
+![Step Functions Design](imgs/ECS-StepFunction-Design.png)
+
+- **Execution Graph**:
+![Step Functions Design](imgs/ECS-StepFunction-Running.png)
+- **SNS Notification**:
+![SNS Email](imgs/ECS-SNS-Alert.png)
 
 ## ECS Task Logic
 
@@ -663,7 +657,7 @@ The state machine (`step_functions/MainStepFn.json`) orchestrates:
   - Success topic: `arn:aws:sns:<YOUR_REGION>:<AWS_ACCOUNT_ID>:pipeline-success` (e.g., email on successful execution).
   - Failure topic: `arn:aws:sns:<YOUR_REGION>:<AWS_ACCOUNT_ID>:pipeline-failure` (e.g., email with error details).
 
-![SNS Notification](imgs/SNS-Alert.png)
+![SNS Notification](imgs/ECS-SNS-Alert.png)
 
 - **CloudWatch Alarms** (optional):
   - Monitor Step Functions failures or ECS task errors.
@@ -698,8 +692,10 @@ The state machine (`step_functions/MainStepFn.json`) orchestrates:
 ### Power BI
 - **Data Source**: Connect to DynamoDB via ODBC or export KPIs to S3 as CSV.
 - **Visualizations**:
-  - **Order KPIs**: Pie chart for `total_orders`, line chart for `total_revenue` over time. ![Order KPIs](imgs/order_kpi.png)
-  - **Category KPIs**: Stacked bar chart for `daily_revenue` by `category`, gauge for `avg_return_rate`. ![Category KPIs](imgs/category_kpi.png)
+  - **Order KPIs**: Pie chart for `total_orders`, line chart for `total_revenue` over time.
+![Order KPIs](imgs/ECS-OrderKPI.png)
+  - **Category KPIs**: Stacked bar chart for `daily_revenue` by `category`, gauge for `avg_return_rate`.
+![Category KPIs](imgs/ECS-DataVisualization.png)
 - **Setup**:
   - Use Power BI Desktop to import data.
   - Publish to Power BI Service for sharing.
