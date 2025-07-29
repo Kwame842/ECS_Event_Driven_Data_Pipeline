@@ -693,9 +693,9 @@ The state machine (`step_functions/MainStepFn.json`) orchestrates:
 - **Data Source**: Connect to DynamoDB via ODBC or export KPIs to S3 as CSV.
 - **Visualizations**:
   - **Order KPIs**: Pie chart for `total_orders`, line chart for `total_revenue` over time.
-![Order KPIs](imgs/ECS-OrderKPI.png)
+![Order KPIs](imgs/OrderKPIs.png)
   - **Category KPIs**: Stacked bar chart for `daily_revenue` by `category`, gauge for `avg_return_rate`.
-![Category KPIs](imgs/ECS-DataVisualization.png)
+![Category KPIs](imgs/CategoryKPIs.png)
 - **Setup**:
   - Use Power BI Desktop to import data.
   - Publish to Power BI Service for sharing.
